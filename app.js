@@ -4,6 +4,17 @@ require('dotenv').config()
 const mongoose = require('mongoose');
 const WebSocket = require('ws');
 
+const uuid = require('./security/uuid');
+
+const Player = require('./db/models/player');
+
+// Configure MongoDB Connection
+initializeMongo().catch(err => console.log(err));
+
+async function initializeMongo() {
+    await mongoose.connect(process.env.MONGO_URI_STRING)
+}
+
 // Configure WebSocket Server
 const server = new WebSocket.Server({
     port: 8080
@@ -13,12 +24,32 @@ let sockets = [];
 server.on('connection', function(socket) {
     sockets.push(socket);
 
+
     socket.on('message', function(msg) {
         data = JSON.parse(msg)
         console.log(data);
 
-        if (data['X-Auth-Token'] === "valid-token") {
-            socket.authorized = true;
+        if (data['X-Auth-Token'] === "NO_TOKEN") {
+            uuid.checkPlayerExists(data)
+                .then((result) => {
+                    if (result) {
+                        socket.authorized = false;
+                        socket.send("Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.");
+                    }
+                    else {
+                        const playerToken = uuid.generateUUID();
+        
+                        const player = new Player({
+                            PlayerId: data.PlayerId,
+                            Name: data.PlayerName,
+                            Token: playerToken
+                        });
+        
+                        player.save();
+                        socket.send("Your token: " + playerToken);
+                        console.log("Saved new user with PlayerId " + data.PlayerId + " and name " + data.PlayerName + ".");
+                    }
+                });
         }
 
         authorizedSockets = sockets.filter(s => s.authorized === true);
@@ -29,9 +60,6 @@ server.on('connection', function(socket) {
         sockets = sockets.filter(s => s !== socket);
     });
 });
-
-// Configure MongoDB Connection
-await mongoose.connect(process.env.MONGO_URI_STRING)
 
 /**
  * Currently, the server can check a token, and perform actions based on whether the socket is authorized to do so.

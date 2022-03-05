@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     command: npm run dev
     environment:
-      - MONGO_URI_STRING="mongodb://localhost:27017/prototype"
+      - MONGO_URI_STRING=mongodb://prototype-mongo:27017/prototype
     ports:
       - 8080:8080
     volumes:
