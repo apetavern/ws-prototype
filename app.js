@@ -33,10 +33,17 @@ server.on('connection', function(socket) {
             uuid.checkPlayerExists(data)
                 .then((result) => {
                     if (result) {
-                        socket.authorized = false;
-                        socket.send("Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.");
-                    }
-                    else {
+                        uuid.checkTokenIsValid(data)
+                            .then((result) => {
+                                if (result) {
+                                    socket.authorized = true;
+                                    socket.send("You are authorized. Enjoy your gaming!");
+                                } else {
+                                    socket.authorized = false;
+                                    socket.send("Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.");
+                                }
+                            });
+                    } else {
                         const playerToken = uuid.generateUUID();
         
                         const player = new Player({
@@ -47,6 +54,7 @@ server.on('connection', function(socket) {
         
                         player.save();
                         socket.send("Your token: " + playerToken);
+                        socket.authorized = true;
                         console.log("Saved new user with PlayerId " + data.PlayerId + " and name " + data.PlayerName + ".");
                     }
                 });
