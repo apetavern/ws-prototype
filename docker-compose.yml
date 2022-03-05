@@ -1,0 +1,25 @@
+services:
+  prototype-app:
+    build:
+      context: .
+    container_name: prototype-app
+    restart: unless-stopped
+    command: npm run dev
+    environment:
+      - MONGO_URI_STRING="mongodb://localhost:27017/prototype"
+    ports:
+      - 8080:8080
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - prototype-mongo
+  prototype-mongo:
+    container_name: prototype-mongo
+    restart: always
+    image: mongo:latest
+    volumes:
+      - /opt/prototype-mongo-data:/data/db
+    ports:
+      - 27017:27017
+  
