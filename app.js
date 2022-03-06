@@ -35,13 +35,16 @@ server.on('connection', function(socket) {
                     if (result) {
                         uuid.checkTokenIsValid(data)
                             .then((result) => {
+                                const outgoingMessage = {};
+                                outgoingMessage.MessageType = 0;
                                 if (result) {
                                     socket.authorized = true;
-                                    socket.send("You are authorized. Enjoy your gaming!");
+                                    outgoingMessage.Message = "You are authorized. Enjoy your gaming!";
                                 } else {
                                     socket.authorized = false;
-                                    socket.send("Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.");
+                                    outgoingMessage.Message = "Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.";
                                 }
+                                socket.send(JSON.stringify(outgoingMessage))
                             });
                     } else {
                         const playerToken = uuid.generateUUID();
@@ -53,7 +56,10 @@ server.on('connection', function(socket) {
                         });
         
                         player.save();
-                        socket.send("Your token: " + playerToken);
+                        const outgoingMessage = {};
+                        outgoingMessage.MessageType = 0;
+                        outgoingMessage.Message = playerToken;
+                        socket.send(JSON.stringify(outgoingMessage));
                         socket.authorized = true;
                         console.log("Saved new user with PlayerId " + data.PlayerId + " and name " + data.PlayerName + ".");
                     }
@@ -81,9 +87,9 @@ server.on('connection', function(socket) {
  * 
  * For client authentication:
  *   1) When a new client connects, check database for PlayerId. If it exists, check if request token matches the
- *      database token for the associated user.
+ *      database token for the associated user. (done)
  *   2) If no PlayerId exists, generate a token, send it to the client, and the s&box client will write it to file for them.
- *      When the user leaves and rejoins, the token should be retained, and automatically populate in their requests.
+ *      When the user leaves and rejoins, the token should be retained, and automatically populate in their requests. (done)
  *   3) If a player loses their token, allow them to sign into our app with Steam OAuth2.0 to retrieve it. Maybe add a client
  *      command to populate this in game for them?
  *   x) In the future, the process will be drastically simplified with s&box's JWT implementation.
