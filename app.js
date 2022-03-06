@@ -29,51 +29,77 @@ server.on('connection', function(socket) {
         data = JSON.parse(msg)
         console.log(data);
 
-        if (data['X-Auth-Token'] === "NO_TOKEN") {
-            uuid.checkPlayerExists(data)
-                .then((result) => {
-                    if (result) {
-                        uuid.checkTokenIsValid(data)
-                            .then((result) => {
-                                const outgoingMessage = {};
-                                outgoingMessage.MessageType = 0;
-                                if (result) {
-                                    socket.authorized = true;
-                                    outgoingMessage.Message = "You are authorized. Enjoy your gaming!";
-                                } else {
-                                    socket.authorized = false;
-                                    outgoingMessage.Message = "Your PlayerId exists in our database, but your token is incorrect. Please contact an administrator for more help.";
-                                }
-                                socket.send(JSON.stringify(outgoingMessage))
-                            });
-                    } else {
-                        const playerToken = uuid.generateUUID();
-        
-                        const player = new Player({
-                            PlayerId: data.PlayerId,
-                            Name: data.PlayerName,
-                            Token: playerToken
-                        });
-        
-                        player.save();
-                        const outgoingMessage = {};
-                        outgoingMessage.MessageType = 0;
-                        outgoingMessage.Message = playerToken;
-                        socket.send(JSON.stringify(outgoingMessage));
-                        socket.authorized = true;
-                        console.log("Saved new user with PlayerId " + data.PlayerId + " and name " + data.PlayerName + ".");
-                    }
-                });
+        if (data.MessageType === 0) {
+            handleAuth(data, socket)
+            .then((response) => {
+                if (response !== undefined) {
+                    socket.send(JSON.stringify(response));
+                }
+            })
+            .catch((err) => {
+                console.log(err);
+            });
+        } else if (data.MessageType === 1) {
+            if (socket.authorized) {
+                const requestedResource = data.Message;
+                console.log(requestedResource);
+            } else {
+                const response = {};
+                response.MessageType = 1;
+                response.Message = "You are not authorized. Resource request failed.";
+                socket.send(JSON.stringify(response));
+            }
         }
-
-        authorizedSockets = sockets.filter(s => s.authorized === true);
-        authorizedSockets.forEach(s => s.send(data.Message));
     });
 
     socket.on('close', function() {
         sockets = sockets.filter(s => s !== socket);
     });
 });
+
+async function handleAuth(data, socket) {
+    const playerExists = await uuid.checkPlayerExists(data);
+
+    const token = data['X-Auth-Token'];
+    const response = {};
+    if (token === 'NO_TOKEN') {
+        if (playerExists) {
+            // No token, player exists. Player likely lost their token.
+            response.MessageType = 1;
+            response.Message = "Your PlayerId exists in our database, but your token is missing. Please contact an administrator for more help.";
+            socket.authorized = false;
+            return response;
+        } else {
+            // No token, player does not exist. Player likely has never attempted to connect before.
+            const playerToken = uuid.generateUUID();
+
+            const player = new Player({
+                PlayerId: data.PlayerId,
+                Name: data.PlayerName,
+                Token: playerToken
+            });
+            player.save();
+
+            response.MessageType = 0;
+            response.Message = playerToken;
+            socket.authorized = true;
+            return response;
+        }
+    } else {
+        if (playerExists) {
+            const tokenIsValid = await uuid.checkTokenIsValid(data);
+            if (tokenIsValid) {
+                // Token exists, player exists. Player is valid and is authorized.
+                response.MessageType = 1;
+                response.Message = "Your token has been authenticated. You are authorized!";
+                socket.authorized = true;
+                return response;
+            }
+        } else {
+            socket.authorized = false;
+        }
+    }
+}
 
 /**
  * Currently, the server can check a token, and perform actions based on whether the socket is authorized to do so.
