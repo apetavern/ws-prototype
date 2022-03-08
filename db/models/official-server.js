@@ -1,5 +1,5 @@
+const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
-const ObjectId = Schema.ObjectId;
 
 const OfficialServer = new Schema({
     ServerId: String,

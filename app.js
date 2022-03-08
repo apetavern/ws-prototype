@@ -4,9 +4,10 @@ require('dotenv').config()
 const mongoose = require('mongoose');
 const WebSocket = require('ws');
 
-const uuid = require('./security/uuid');
+const auth = require('./security/auth');
 
 const Player = require('./db/models/player');
+const OfficialServer = require('./db/models/official-server');
 
 // Configure MongoDB Connection
 initializeMongo().catch(err => console.log(err));
@@ -29,25 +30,51 @@ server.on('connection', function(socket) {
         data = JSON.parse(msg)
         console.log(data);
 
-        if (data.MessageType === 0) {
-            handleAuth(data, socket)
-            .then((response) => {
-                if (response !== undefined) {
+        const msgIsFromServer = data.IsServer;
+
+        if (msgIsFromServer) {
+            if (data.MessageType === 0) {
+                handleAuthForServer(data, socket)
+                .then((response) => {
+                    if (response !== undefined) {
+                        socket.send(JSON.stringify(response));
+                    }
+                })
+                .catch((err) => {
+                    console.log(err);
+                })
+            } else if (data.MessageType === 1) {
+                if (socket.authorized && socket.IsOfficialServer) {
+                    const requestedResource = data.Message;
+                    console.log(requestedResource);
+                } else {
+                    const response = {};
+                    response.MessageType = 1;
+                    response.Message = "You are not authorized. Resource request failed.";
                     socket.send(JSON.stringify(response));
                 }
-            })
-            .catch((err) => {
-                console.log(err);
-            });
-        } else if (data.MessageType === 1) {
-            if (socket.authorized) {
-                const requestedResource = data.Message;
-                console.log(requestedResource);
-            } else {
-                const response = {};
-                response.MessageType = 1;
-                response.Message = "You are not authorized. Resource request failed.";
-                socket.send(JSON.stringify(response));
+            }
+        } else {
+            if (data.MessageType === 0) {
+                handleAuthForClient(data, socket)
+                .then((response) => {
+                    if (response !== undefined) {
+                        socket.send(JSON.stringify(response));
+                    }
+                })
+                .catch((err) => {
+                    console.log(err);
+                });
+            } else if (data.MessageType === 1) {
+                if (socket.authorized) {
+                    const requestedResource = data.Message;
+                    console.log(requestedResource);
+                } else {
+                    const response = {};
+                    response.MessageType = 1;
+                    response.Message = "You are not authorized. Resource request failed.";
+                    socket.send(JSON.stringify(response));
+                }
             }
         }
     });
@@ -57,8 +84,15 @@ server.on('connection', function(socket) {
     });
 });
 
-async function handleAuth(data, socket) {
-    const playerExists = await uuid.checkPlayerExists(data);
+/**
+ * Asynchronously handle authentication for a client.
+ * 
+ * @param {*} data The incoming JSON data from the client.
+ * @param {*} socket The contextual socket.
+ * @returns Response data.
+ */
+async function handleAuthForClient(data, socket) {
+    const playerExists = await auth.checkPlayerExists(data);
 
     const token = data['X-Auth-Token'];
     const response = {};
@@ -71,7 +105,7 @@ async function handleAuth(data, socket) {
             return response;
         } else {
             // No token, player does not exist. Player likely has never attempted to connect before.
-            const playerToken = uuid.generateUUID();
+            const playerToken = auth.generateUUID();
 
             const player = new Player({
                 PlayerId: data.PlayerId,
@@ -87,7 +121,7 @@ async function handleAuth(data, socket) {
         }
     } else {
         if (playerExists) {
-            const tokenIsValid = await uuid.checkTokenIsValid(data);
+            const tokenIsValid = await auth.checkPlayerTokenIsValid(data);
             if (tokenIsValid) {
                 // Token exists, player exists. Player is valid and is authorized.
                 response.MessageType = 1;
@@ -102,9 +136,32 @@ async function handleAuth(data, socket) {
 }
 
 /**
+ * Asynchronously handle authentication for a server.
+ * 
+ * @param {*} data The incoming JSON data from the server.
+ * @param {*} socket The contextual socket.
+ * @returns Response data.
+ */
+async function handleAuthForServer(data, socket) {
+    const response = {};
+
+    const tokenIsValid = await auth.checkServerTokenIsValid(data);
+    if (tokenIsValid) {
+        response.MessageType = 1;
+        response.Message = "Official Server Token has been authenticated. This server is authorized!";
+        socket.authorized = true;
+        socket.IsOfficialServer = true;
+        return response;
+    } else {
+        socket.authorized = false;
+        socket.IsOfficialServer = false;
+    }
+}
+
+/**
  * Currently, the server can check a token, and perform actions based on whether the socket is authorized to do so.
  * Expand on this by:
- *   1) Writing some database schema that designates Official Servers and their respective tokens.
+ *   1) Writing some database schema that designates Official Servers and their respective tokens. (done)
  *   2) Upon a request, perform actions for a specific server based on the request's token.
  * This will prevent unofficial servers for a particular game from communicating with the WS Server to our liking.
  * 
