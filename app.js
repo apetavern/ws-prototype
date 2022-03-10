@@ -3,11 +3,33 @@ require('dotenv').config()
 // Dependencies
 const mongoose = require('mongoose');
 const WebSocket = require('ws');
+const express = require('express');
+const hbs = require('express-handlebars');
+const path = require('path');
 
 const auth = require('./security/auth');
-
 const Player = require('./db/models/player');
-const OfficialServer = require('./db/models/official-server');
+const indexRouter = require('./routes/index');
+
+// Configure Express and Handlebars
+const handlebars = hbs.create({
+    extname: 'hbs',
+    defaultLayout: 'main',
+    layoutsDir: __dirname + '/views/layouts/',
+    partialsDir: __dirname + '/views/partials'
+});
+
+const app = express();
+app.engine('hbs', handlebars.engine);
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'hbs');
+app.use(express.static(path.join(__dirname, 'public')))
+
+app.use('/', indexRouter);
+
+const webServer = app.listen(3000, () => {
+    console.log('Application started on port 3000.');
+})
 
 // Configure MongoDB Connection
 initializeMongo().catch(err => console.log(err));

@@ -10,8 +10,13 @@
   "license": "GPL-3.0",
   "dependencies": {
     "dotenv": "^16.0.0",
+    "express": "^4.17.3",
+    "express-handlebars": "^6.0.3",
     "mongoose": "^6.2.4",
     "nodemon": "^2.0.15",
+    "passport": "^0.5.2",
+    "passport-steam": "^1.0.17",
+    "path": "^0.12.7",
     "uuid": "^8.3.2",
     "ws": "^8.5.0"
   }
