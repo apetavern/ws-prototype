@@ -6,7 +6,9 @@ const WebSocket = require('ws');
 const express = require('express');
 const hbs = require('express-handlebars');
 const path = require('path');
+const session = require('express-session');
 
+const passport = require('./config/passport');
 const auth = require('./security/auth');
 const Player = require('./db/models/player');
 const indexRouter = require('./routes/index');
@@ -24,6 +26,16 @@ app.engine('hbs', handlebars.engine);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
 app.use(express.static(path.join(__dirname, 'public')))
+
+app.use(session({
+    secret: process.env.SECRET,
+    name: "steam-session-dev",
+    resave: true,
+    saveUninitialized: true
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use('/', indexRouter);
 
